@@ -1,0 +1,8 @@
+build/**
+build
+test/*.o
+test/*.json
+.clang-format
+.clion**
+thd
+.vscode
