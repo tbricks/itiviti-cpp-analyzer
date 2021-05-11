@@ -1,5 +1,4 @@
-SET(GCC_TOOLCHAIN
-    "-isystem /opt/gcc-8.2.0/include/c++/8.2.0 -isystem /opt/gcc-8.2.0/include/c++/8.2.0/x86_64-unknown-linux -isystem /opt/gcc-8.2.0/include/c++/8.2.0/backward  -isystem /usr/local/include -isystem /opt/llvm-10/lib64/clang/10.0.1/include -isystem /usr/include")
+message(STATUS "prev gcc toolchain: ${GCC_TOOLCHAIN}")
 
 function(add_ica_test)
     cmake_parse_arguments(
@@ -15,7 +14,7 @@ function(add_ica_test)
     endforeach(path)
     add_test(
         NAME ${ARGS_NAME}
-        COMMAND sh -c "/opt/llvm-10/bin/clang++ --std=c++17 --gcc-toolchain=/opt/gcc-8.2.0 -Xclang -load -Xclang $<TARGET_FILE:ica-plugin> -Xclang -add-plugin -Xclang ica-plugin -Xclang -plugin-arg-ica-plugin -Xclang checks=${ARGS_CHECKS} ${GCC_TOOLCHAIN} -Xclang -verify ${CONCAT_PATH} -c"
+        COMMAND sh -c "clang++ --std=c++17 --gcc-toolchain=${GCC_TOOLCHAIN} -Xclang -load -Xclang $<TARGET_FILE:ica-plugin> -Xclang -add-plugin -Xclang ica-plugin -Xclang -plugin-arg-ica-plugin -Xclang checks=${ARGS_CHECKS} -Xclang -verify ${CONCAT_PATH} -c"
     )
 endfunction(add_ica_test)
 
@@ -66,12 +65,6 @@ add_ica_test(
     NAME CCBadRandTest
     CHECKS bad-rand
     FILES_PATHS cpp-course/test_bad_rand.cpp
-)
-
-add_ica_test(
-    NAME CCItreatorVisitorTest
-    CHECKS correct-iterator
-    FILES_PATHS cpp-course/test_correct_iterator.cpp
 )
 
 add_ica_test(
