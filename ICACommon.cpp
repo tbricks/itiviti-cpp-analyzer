@@ -209,5 +209,8 @@ const clang::DeclRefExpr * extractDeclRef(const clang::Expr * expr)
     else if (auto op_call = clang::dyn_cast<clang::CXXOperatorCallExpr>(expr)) {
         expr = op_call->getArg(0); // operator has at least one argument, I'm pretty sure it's the argument, operator applied to
     }
+    else if (auto op_call = clang::dyn_cast<clang::UnaryOperator>(expr)) {
+        expr = op_call->getSubExpr();
+    }
     return clang::dyn_cast<clang::DeclRefExpr>(expr->IgnoreCasts());
 }

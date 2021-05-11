@@ -171,7 +171,7 @@ bool CCBadRandVisitor::VisitVarDecl(clang::VarDecl *var_decl)
         return true;
     }
 
-    if (is_random_engine_type(var_decl->getType())) {
+    if (is_random_engine_type(var_decl->getType()) && !var_decl->isStaticLocal()) {
         m_rand_engns.insert({var_decl, m_comp_stmt_stack.back()});
     }
     return true;

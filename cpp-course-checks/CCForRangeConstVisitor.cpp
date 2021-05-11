@@ -6,6 +6,7 @@
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/AST/Stmt.h>
 #include <clang/AST/StmtCXX.h>
 #include <clang/AST/Type.h>
 #include <clang/Basic/LLVM.h>
@@ -39,8 +40,34 @@ bool sameParams(const clang::FunctionDecl * l_func, const clang::FunctionDecl * 
 
 }
 
+struct CCForRangeConstVisitor::FunctionDeclStack
+{
+    void push_if_has_body(const clang::FunctionDecl * func_decl)
+    {
+        if (func_decl && func_decl->doesThisDeclarationHaveABody()) {
+            m_stack.push_back(func_decl);
+        }
+    }
+
+    bool empty() const noexcept { return m_stack.empty(); }
+    clang::QualType curr_ret_type() const { return m_stack.back()->getReturnType(); }
+
+    void end_body(const clang::Stmt * stmt) {
+        if (empty()) {
+            return;
+        }
+        if (stmt == m_stack.back()->getBody()) {
+            m_stack.pop_back();
+        }
+    }
+
+private:
+    std::vector<const clang::FunctionDecl *> m_stack;
+};
+
 CCForRangeConstVisitor::CCForRangeConstVisitor(clang::CompilerInstance & ci, const ICAConfig & checks)
     : ICAVisitor(ci, checks)
+    , m_function_decl_stack(std::make_shared<FunctionDeclStack>())
 {
     if (!isEnabled()) return;
 
@@ -48,6 +75,8 @@ CCForRangeConstVisitor::CCForRangeConstVisitor(clang::CompilerInstance & ci, con
     m_const_param_id = getCustomDiagID(const_param, "%0 can have 'const' qualifier");
     m_const_rvalue_id = getCustomDiagID(const_param, "%0 is got as rvalue-reference, but never modified");
 }
+
+CCForRangeConstVisitor::~CCForRangeConstVisitor() = default;
 
 bool CCForRangeConstVisitor::VisitCXXForRangeStmt(clang::CXXForRangeStmt *for_stmt)
 {
@@ -62,6 +91,10 @@ bool CCForRangeConstVisitor::VisitCXXForRangeStmt(clang::CXXForRangeStmt *for_st
 
     if (isConstType(loop_var->getType()) || loop_var->getType()->isPointerType()) {
         return true; // ignore already const variables or pointers
+    }
+
+    if (for_stmt->getRangeInit()->isInstantiationDependent()) {
+        return true;
     }
 
     if (auto decomp_decl = clang::dyn_cast<clang::DecompositionDecl>(loop_var)) {
@@ -98,6 +131,7 @@ bool CCForRangeConstVisitor::VisitFunctionDecl(clang::FunctionDecl * func_decl)
     if (!func_decl->doesThisDeclarationHaveABody()) {
         return true;
     }
+    m_function_decl_stack->push_if_has_body(func_decl);
 
     if (auto method_decl = clang::dyn_cast<clang::CXXMethodDecl>(func_decl)) {
         if (method_decl->isVirtual()) {
@@ -253,6 +287,19 @@ bool CCForRangeConstVisitor::VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr
     return true;
 }
 
+bool CCForRangeConstVisitor::VisitReturnStmt(clang::ReturnStmt *ret_stmt)
+{
+    if (m_function_decl_stack->empty()) {
+        return true;
+    }
+
+    auto curr_ret_type = m_function_decl_stack->curr_ret_type();
+    if (!isConstType(curr_ret_type) && isRefOrPtr(curr_ret_type)) {
+        removeLoopVar(extractDeclRef(ret_stmt->getRetValue()));
+    }
+    return true;
+}
+
 bool CCForRangeConstVisitor::dataTraverseStmtPost(clang::Stmt *stmt)
 {
     if (auto [begin, end] = m_loop_vars.left.equal_range(stmt); begin != end && begin->get_left() == stmt) {
@@ -269,6 +316,7 @@ bool CCForRangeConstVisitor::dataTraverseStmtPost(clang::Stmt *stmt)
         }
         m_loop_vars.left.erase(begin, end);
     }
+    m_function_decl_stack->end_body(stmt);
     return true;
 }
 

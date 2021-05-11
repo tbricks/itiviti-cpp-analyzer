@@ -42,6 +42,8 @@ void rand_once()
     int a = gen(); // expected-warning {{you probably want to use 'uniform_int_distribution' here}}
     std::knuth_b gen1(std::random_device{}()); // expected-warning {{constructing random engine for only a few numbers is not the best practice}}
 
+    static std::mt19937 gen3(std::random_device{}()); // OK
+
     std::uniform_int_distribution<unsigned long> dist(0, 10);
     if (dist(gen)) {
         int b = dist(gen1);

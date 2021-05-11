@@ -11,6 +11,7 @@
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/AST/Stmt.h>
 #include <clang/AST/StmtCXX.h>
 #include <clang/Frontend/CompilerInstance.h>
 
@@ -24,6 +25,8 @@ public:
 
 public:
     CCForRangeConstVisitor(clang::CompilerInstance & ci, const ICAConfig & checks);
+    CCForRangeConstVisitor(CCForRangeConstVisitor &&) = default;
+    ~CCForRangeConstVisitor();
 
     bool VisitCXXForRangeStmt(clang::CXXForRangeStmt * for_stmt);
     bool VisitFunctionDecl(clang::FunctionDecl * func_decl);
@@ -33,6 +36,7 @@ public:
     bool VisitBinaryOperator(clang::BinaryOperator * bin_op);
     bool VisitUnaryOperator(clang::UnaryOperator * un_op);
     bool VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr * op_call);
+    bool VisitReturnStmt(clang::ReturnStmt * ret_stmt);
 
     bool dataTraverseStmtPost(clang::Stmt * stmt);
 
@@ -47,10 +51,14 @@ private:
     bool hasConstOverload(const clang::CXXMethodDecl * method_decl);
 
 private:
+    struct FunctionDeclStack;
+
+private:
     LoopVars m_loop_vars;
 
     std::unordered_map<const clang::CXXMethodDecl *, bool> m_has_const_overload;
     std::unordered_map<const clang::FunctionDecl *, std::vector<uint>> m_non_templated_params;
+    std::shared_ptr<FunctionDeclStack> m_function_decl_stack;
 
     DiagnosticID m_for_range_const_id = 0;
     DiagnosticID m_const_param_id = 0;

@@ -14,7 +14,6 @@
 #include "ICARemoveCStrVisitor.h"
 
 #include "CCBadRandVisitor.h"
-#include "CCIteratorVisitor.h"
 #include "CCForRangeConstVisitor.h"
 #include "CCImproperMoveVisitor.h"
 #include "CCReturnValueVisitor.h"
@@ -34,7 +33,6 @@ class ICAConsumer : public clang::ASTConsumer
         CCInitMembersVisitor,
         CCForRangeConstVisitor,
         CCImproperMoveVisitor,
-        CCIteratorVisitor,
         CCReturnValueVisitor,
         CCMiscellaneousVisitor,
         CCBadRandVisitor>;

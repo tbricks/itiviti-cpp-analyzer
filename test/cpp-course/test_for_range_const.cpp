@@ -11,9 +11,6 @@ void empty_traverse()
 
     for(auto [f, s] : v) {} // expected-warning {{'const' should be specified explicitly for variable in for-range loop}}
 
-    std::vector<int *> v_arr;
-    for (auto * arr : v_arr) {} // expected-warning {{'const' should be specified explicitly for variable in for-range loop}}
-
     std::vector<std::vector<int>> v_lines;
     for (auto & line : v_lines) {} // expected-warning {{'const' should be specified explicitly for variable in for-range loop}}
 }
@@ -163,3 +160,59 @@ struct Derived : Abstract
 {
     void foo(int & a) override {}
 };
+
+int * return_ptr(std::vector<int> & vec) {
+    for (int & el : vec) {
+        if (el > 4)
+            return &el;
+    }
+    return nullptr;
+}
+
+const int * return_const_ptr(std::vector<int> & vec) {
+    for (int & el : vec) // expected-warning {{'const' should be specified explicitly for variable in for-range loop}}
+        if (el > 4)
+            return &el;
+    return nullptr;
+}
+
+int & return_ref(std::vector<int> & vec) {
+    for (int & el : vec) {
+        if (el > 4)
+            return el;
+    }
+    return vec.back();
+}
+
+const int & return_const_ref(std::vector<int> & vec) {
+    for (int & el : vec) { // expected-warning {{'const' should be specified explicitly for variable in for-range loop}}
+        if (el > 4)
+            return el;
+    }
+    return vec.back();
+}
+
+const int & return_ptr_from_lambda_and_const_ref_from_func(std::vector<int> & vec) {
+    auto lambda = [](auto & vec) -> typename std::decay_t<decltype(vec)>::value_type * {
+        for (auto & el : vec)
+            if (el > 42)
+                return &el;
+        return nullptr;
+    };
+    lambda(vec);
+
+    return vec.front();
+}
+
+const int & return_const_ptr_from_lambda_and_from_func(std::vector<int> & vec) {
+    auto lambda = [](auto & vec) -> const int * {
+        for (auto & el : vec) { // expected-warning {{'const' should be specified explicitly for variable in for-range loop}}
+            if (el > 42)
+                return &el;
+        }
+        return nullptr;
+    };
+    lambda(vec);
+
+    return vec.front();
+}
