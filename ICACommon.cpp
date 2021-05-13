@@ -193,13 +193,16 @@ std::string wrapCheckNameWithURL(const std::string_view check_name)
 
 const clang::DeclRefExpr * extractDeclRef(const clang::Expr * expr)
 {
+    if (!expr) {
+        return nullptr;
+    }
     expr = expr->IgnoreImpCasts();
     if (auto arr_subscr = clang::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
         expr = arr_subscr->getBase();
     }
     else if (auto mem_call = clang::dyn_cast<clang::CXXMemberCallExpr>(expr)) {
         auto method_decl = mem_call->getMethodDecl();
-        if (method_decl->getReturnType()->isReferenceType()) { // we associate method result with the object itself only if it returns a reference
+        if (method_decl && method_decl->getReturnType()->isReferenceType()) { // we associate method result with the object itself only if it returns a reference
             expr = mem_call->getImplicitObjectArgument();
         }
     }
