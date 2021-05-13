@@ -14,6 +14,8 @@ static int local_foo() // expected-warning {{it's recommended to use anonymous n
     return 123;
 }
 
+template struct TemplatedStruct<double>;
+
 namespace  {
 static int h = 4;
 

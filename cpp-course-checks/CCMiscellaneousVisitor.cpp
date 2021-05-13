@@ -122,7 +122,7 @@ bool CCMiscellaneousVisitor::VisitVarDecl(clang::VarDecl * var_decl)
         return true;
     }
 
-    if (var_decl->hasGlobalStorage()) {
+    if (var_decl->hasGlobalStorage() && !var_decl->isTemplated()) {
         auto file_name = getSM().getFilename(var_decl->getLocation());
         if (file_name.endswith(".h") || file_name.endswith(".hpp")) {
             report(var_decl->getLocation(), m_static_in_header_id);

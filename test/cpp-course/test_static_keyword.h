@@ -27,3 +27,10 @@ inline int foo()
     int c, d;
     return c + d;
 }
+
+template <class T>
+struct TemplatedStruct
+{
+    static inline int value = 42;
+};
+template struct TemplatedStruct<int>;
