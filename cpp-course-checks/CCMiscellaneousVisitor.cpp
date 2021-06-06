@@ -72,7 +72,7 @@ bool CCMiscellaneousVisitor::VisitDeclRefExpr(clang::DeclRefExpr * decl_ref)
 
 bool CCMiscellaneousVisitor::VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr * op_call)
 {
-    if (!shouldProcessExpr(op_call, getSM()) && currCtor()) {
+    if (!shouldProcessExpr(op_call, getSM())|| currCtor()) {
         return true;
     }
 
