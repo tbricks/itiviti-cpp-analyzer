@@ -6,6 +6,7 @@
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/AST/OperationKinds.h>
 #include <clang/AST/Stmt.h>
 #include <clang/AST/StmtCXX.h>
 #include <clang/AST/Type.h>
@@ -17,6 +18,7 @@
 #include <algorithm>
 #include <numeric>
 #include <string_view>
+
 namespace {
 
 bool isConstType(const clang::QualType & type)
@@ -38,15 +40,32 @@ bool sameParams(const clang::FunctionDecl * l_func, const clang::FunctionDecl * 
             });
 }
 
+const clang::Expr * nullIfNotConsidered(const clang::Expr * expr)
+{
+    if (!expr) {
+        return nullptr;
+    }
+
+    expr = expr->IgnoreParenCasts();
+    const bool is_considered = clang::isa<clang::DeclRefExpr>(expr)    ||
+                               clang::isa<clang::CallExpr>(expr)       ||
+                               clang::isa<clang::BinaryOperator>(expr) ||
+                               clang::isa<clang::UnaryOperator>(expr)  ||
+                               clang::isa<clang::MemberExpr>(expr);
+    return is_considered ? expr : nullptr;
+}
+
 }
 
 struct CCForRangeConstVisitor::FunctionDeclStack
 {
-    void push_if_has_body(const clang::FunctionDecl * func_decl)
+    bool push_if_has_body(const clang::FunctionDecl * func_decl)
     {
         if (func_decl && func_decl->doesThisDeclarationHaveABody()) {
             m_stack.push_back(func_decl);
+            return true;
         }
+        return false;
     }
 
     bool empty() const noexcept { return m_stack.empty(); }
@@ -67,7 +86,7 @@ private:
 
 CCForRangeConstVisitor::CCForRangeConstVisitor(clang::CompilerInstance & ci, const ICAConfig & checks)
     : ICAVisitor(ci, checks)
-    , m_function_decl_stack(std::make_shared<FunctionDeclStack>())
+    , m_function_decl_stack(std::make_unique<FunctionDeclStack>())
 {
     if (!isEnabled()) return;
 
@@ -76,6 +95,8 @@ CCForRangeConstVisitor::CCForRangeConstVisitor(clang::CompilerInstance & ci, con
     m_const_rvalue_id = getCustomDiagID(const_param, "%0 is got as rvalue-reference, but never modified");
 }
 
+CCForRangeConstVisitor::CCForRangeConstVisitor(CCForRangeConstVisitor &&) = default;
+
 CCForRangeConstVisitor::~CCForRangeConstVisitor() = default;
 
 bool CCForRangeConstVisitor::VisitCXXForRangeStmt(clang::CXXForRangeStmt *for_stmt)
@@ -83,13 +104,28 @@ bool CCForRangeConstVisitor::VisitCXXForRangeStmt(clang::CXXForRangeStmt *for_st
     if(!shouldProcessStmt(for_stmt, getSM())) {
         return true;
     }
-
-    auto loop_var = for_stmt->getLoopVariable();
-    if (!isConstType(loop_var->getType()) && isRefOrPtr(loop_var->getType())) {
-        removeLoopVar(extractDeclRef(for_stmt->getRangeInit()));
+    {
+        auto * begin_stmt = for_stmt->getBeginStmt();
+        if (begin_stmt) {
+            for (auto * decl : begin_stmt->decls()) {
+                VisitVarDecl(clang::dyn_cast_or_null<clang::VarDecl>(decl));
+            }
+        }
+        auto * end_stmt =  for_stmt->getEndStmt();
+        if (end_stmt) {
+            for (auto * decl : end_stmt->decls()) {
+                VisitVarDecl(clang::dyn_cast_or_null<clang::VarDecl>(decl));
+            }
+        }
     }
 
-    if (isConstType(loop_var->getType()) || loop_var->getType()->isPointerType()) {
+    auto loop_var = for_stmt->getLoopVariable();
+    auto ref_info = getRefTypeInfo(loop_var->getType());
+    if (ref_info.is_ref && !ref_info.is_const) {
+        removeCheckedVar(extractDeclRef(for_stmt->getRangeInit()));
+    }
+
+    if (loop_var->getType()->isPointerType() || ref_info.is_const) {
         return true; // ignore already const variables or pointers
     }
 
@@ -99,10 +135,10 @@ bool CCForRangeConstVisitor::VisitCXXForRangeStmt(clang::CXXForRangeStmt *for_st
 
     if (auto decomp_decl = clang::dyn_cast<clang::DecompositionDecl>(loop_var)) {
         for(const auto binding : decomp_decl->bindings()) {
-            m_loop_vars.insert(LoopVarEntry(for_stmt, binding));
+            m_checked_vars.emplace(for_stmt, binding);
         }
     } else {
-        m_loop_vars.insert(LoopVarEntry(for_stmt, loop_var));
+        m_checked_vars.emplace(for_stmt, loop_var);
     }
 
     return true;
@@ -128,10 +164,9 @@ bool CCForRangeConstVisitor::VisitFunctionDecl(clang::FunctionDecl * func_decl)
         return true;
     }
 
-    if (!func_decl->doesThisDeclarationHaveABody()) {
+    if (!m_function_decl_stack->push_if_has_body(func_decl)) {
         return true;
     }
-    m_function_decl_stack->push_if_has_body(func_decl);
 
     if (auto method_decl = clang::dyn_cast<clang::CXXMethodDecl>(func_decl)) {
         if (method_decl->isVirtual()) {
@@ -142,7 +177,7 @@ bool CCForRangeConstVisitor::VisitFunctionDecl(clang::FunctionDecl * func_decl)
     std::function<bool(uint)> not_templated = [](auto) { return true; };
     if (auto it = m_non_templated_params.find(func_decl->getTemplateInstantiationPattern()); it != m_non_templated_params.end()) {
         const auto & line = it->second;
-        not_templated = [expected_idx(0), &line](uint parm_num) mutable {
+        not_templated = [expected_idx(uint8_t(0)), &line](uint8_t parm_num) mutable {
             bool res = false;
             if (expected_idx < line.size()) {
                 res = line[expected_idx] == parm_num;
@@ -152,11 +187,12 @@ bool CCForRangeConstVisitor::VisitFunctionDecl(clang::FunctionDecl * func_decl)
         };
     }
 
+    // find out which of function parameters are used to initialize a class member of reference type
     std::set<const clang::ParmVarDecl *> ref_initializers;
     if (auto as_ctor_decl = clang::dyn_cast<clang::CXXConstructorDecl>(func_decl)) {
         for (auto init_expr : as_ctor_decl->inits()) {
             if (auto member = init_expr->getAnyMember()) {
-                if (auto member_type = member->getType(); !isRefOrPtr(member_type) || isConstType(member_type)) {
+                if (!isMutRef(member->getType())) {
                     continue;
                 }
                 if (auto decl_ref = extractDeclRef(init_expr->getInit())) {
@@ -172,8 +208,13 @@ bool CCForRangeConstVisitor::VisitFunctionDecl(clang::FunctionDecl * func_decl)
     const auto * body = func_decl->getBody();
     uint parm_num = 0;
     for (const auto * parm : func_decl->parameters()) {
+        if (parm_num > 255) {
+            llvm::outs() << "More than 256 parameters in " <<
+                    func_decl->getNameInfo().getAsString() <<
+                    ". for-range-const and const-param may have problems\n";
+        }
         if (not_templated(parm_num) && !isConstType(parm->getType()) && parm->getType()->isReferenceType() && !inits_ref(parm)) {
-            m_loop_vars.insert(LoopVarEntry{body, parm});
+            m_checked_vars.emplace(body, parm);
         }
         ++parm_num;
     }
@@ -181,9 +222,27 @@ bool CCForRangeConstVisitor::VisitFunctionDecl(clang::FunctionDecl * func_decl)
     return true;
 }
 
+bool CCForRangeConstVisitor::VisitVarDecl(clang::VarDecl *var_decl)
+{
+    if (!shouldProcessDecl(var_decl, getSM())) {
+        return true;
+    }
+
+    if (!var_decl->isLocalVarDecl()) {
+        return true;
+    }
+
+    if (!isMutRef(var_decl->getType())) {
+        return true;
+    }
+
+    addMutRefProducer(var_decl->getInit(), nullptr, var_decl);
+    return true;
+}
+
 bool CCForRangeConstVisitor::VisitCXXMemberCallExpr(clang::CXXMemberCallExpr *member_call)
 {
-    if (m_loop_vars.empty()) {
+    if (m_checked_vars.empty()) {
         return true;
     }
 
@@ -192,39 +251,44 @@ bool CCForRangeConstVisitor::VisitCXXMemberCallExpr(clang::CXXMemberCallExpr *me
         return true;
     }
 
-    if (method_decl->isConst() || hasConstOverload(method_decl)) {
-        return true;
+    const auto * caller = member_call->getImplicitObjectArgument();
+    if (producesMutRef(member_call) || !hasConstOverload(method_decl)) {
+        addMutRefProducer(caller, member_call);
     }
-
-    const auto caller = extractDeclRef(member_call->getImplicitObjectArgument());
-
-    removeLoopVar(caller);
     return true;
 }
 
 bool CCForRangeConstVisitor::VisitCallExpr(clang::CallExpr *call)
 {
-    if (m_loop_vars.empty()) {
+    if (m_checked_vars.empty()) {
         return true;
     }
 
     if (auto callee = call->getDirectCallee()) {
+
         uint arg_num = 0;
         if (auto method = clang::dyn_cast<clang::CXXMethodDecl>(callee); method && clang::isa<clang::CXXOperatorCallExpr>(call)) {
             if (!hasConstOverload(method)) {
-                removeLoopVar(extractDeclRef(call->getArg(arg_num)));
+                addMutRefProducer(call->getArg(arg_num), call);
             }
             ++arg_num;
         }
         for (const auto * parm : callee->parameters()) {
-            if (!isConstType(parm->getType()) && isRefOrPtr(parm->getType())) {
-                removeLoopVar(extractDeclRef(call->getArg(arg_num)));
+            /* There are 2 cases:
+                void foo(vector<int> & v) { sort(v.begin(), v.end()); }
+                void boo(vector<int> & v) { for_each(v.begin(), v.end(), [](int){})}
+
+               I didn't manage to check if 'v' is 'const'-able in the second one, but not the first,
+                so in order to avoid false-positives I consider all templated functions as modifying
+            */
+            if (isMutRef(parm->getType()) || callee->getPrimaryTemplate()) {
+                addMutRefProducer(call->getArg(arg_num), call);
             }
             ++arg_num;
         }
-        for (auto arg_it = call->arg_begin() + arg_num; arg_it != call->arg_end(); ++ arg_it) {
-            if (isRefOrPtr((*arg_it)->getType())) {
-                removeLoopVar(extractDeclRef(*arg_it));
+        for (auto arg_it = call->arg_begin() + arg_num; arg_it != call->arg_end(); ++arg_it) {
+            if (getRefTypeInfo((*arg_it)->getType()).is_ref) {
+                addMutRefProducer(call->getArg(arg_num), call);
             }
         }
     }
@@ -236,31 +300,45 @@ bool CCForRangeConstVisitor::VisitCallExpr(clang::CallExpr *call)
 
 bool CCForRangeConstVisitor::VisitBinaryOperator(clang::BinaryOperator * bin_op)
 {
-    if (m_loop_vars.empty()) {
+    if (m_checked_vars.empty()) {
         return true;
     }
 
-    if (!bin_op->isAssignmentOp()) {
-        return true;
+    if (bin_op->isAssignmentOp()) {
+        addMutRefProducer(bin_op->getLHS(), bin_op);
+    } else if (producesMutRef(bin_op) && isMutRef(bin_op->getType())) {
+        addMutRefProducer(bin_op->getLHS(), bin_op);
+        addMutRefProducer(bin_op->getRHS(), bin_op);
     }
 
-    auto l_arg = bin_op->getLHS();
-
-
-    if (const auto loop_var_ref = extractDeclRef(l_arg)) {
-        removeLoopVar(loop_var_ref);
-    }
     return true;
 }
 
 bool CCForRangeConstVisitor::VisitUnaryOperator(clang::UnaryOperator *un_op)
 {
-    if (m_loop_vars.empty()) {
+    if (m_checked_vars.empty()) {
         return true;
     }
 
-    if (un_op->isIncrementDecrementOp()) {
-        removeLoopVar(clang::dyn_cast<clang::DeclRefExpr>(un_op->getSubExpr()));
+    auto kind = un_op->getOpcode();
+    bool should_check_sub_expr = false;
+    switch (kind) {
+    case clang::UO_PostDec:
+    case clang::UO_PostInc:
+    case clang::UO_PreDec:
+    case clang::UO_PreInc:
+        should_check_sub_expr = true;
+        break;
+    case clang::UO_AddrOf:
+    case clang::UO_Deref:
+        should_check_sub_expr = producesMutRef(un_op);
+        break;
+    default:
+        break;
+    }
+
+    if (should_check_sub_expr) {
+        addMutRefProducer(un_op->getSubExpr(), un_op);
     }
 
     return true;
@@ -268,18 +346,18 @@ bool CCForRangeConstVisitor::VisitUnaryOperator(clang::UnaryOperator *un_op)
 
 bool CCForRangeConstVisitor::VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr * op_call)
 {
-    if (m_loop_vars.empty()) {
+    if (m_checked_vars.empty()) {
         return true;
     }
 
     if (const auto * func_decl = op_call->getDirectCallee()) {
         if (const auto * method_decl = clang::dyn_cast<clang::CXXMethodDecl>(func_decl)) {
-            if (!(method_decl->isConst() || hasConstOverload(method_decl))) {
-                removeLoopVar(extractDeclRef(op_call->getArg(0)));
+            if (!hasConstOverload(method_decl) || producesMutRef(op_call)) {
+                addMutRefProducer(op_call->getArg(0), op_call);
             }
         } else {
-            if (auto lhs_type = func_decl->getParamDecl(0)->getType(); !isConstType(lhs_type) && isRefOrPtr(lhs_type)) {
-                removeLoopVar(extractDeclRef(op_call->getArg(0)));
+            if (auto lhs_type = func_decl->getParamDecl(0)->getType(); isMutRef(lhs_type)) {
+                addMutRefProducer(op_call->getArg(0), op_call);
             }
         }
     }
@@ -294,46 +372,65 @@ bool CCForRangeConstVisitor::VisitReturnStmt(clang::ReturnStmt *ret_stmt)
     }
 
     auto curr_ret_type = m_function_decl_stack->curr_ret_type();
-    if (!isConstType(curr_ret_type) && isRefOrPtr(curr_ret_type)) {
-        removeLoopVar(extractDeclRef(ret_stmt->getRetValue()));
+    if (isMutRef(curr_ret_type)) {
+        addMutRefProducer(ret_stmt->getRetValue(), nullptr);
     }
     return true;
 }
 
 bool CCForRangeConstVisitor::dataTraverseStmtPost(clang::Stmt *stmt)
 {
-    if (auto [begin, end] = m_loop_vars.left.equal_range(stmt); begin != end && begin->get_left() == stmt) {
+    if (auto [begin, end] = m_checked_vars.get<Scope>().equal_range(stmt); begin != end && begin->scope == stmt) {
         if (const auto * for_stmt = clang::dyn_cast<clang::CXXForRangeStmt>(stmt)) {
             if (getCheck(for_range_const)) {
                 report(for_stmt->getLoopVariable()->getTypeSpecStartLoc(), m_for_range_const_id);
             }
         } else if (getCheck(const_param)) {
-            std::for_each(begin, end, [this](const auto & lve) {
-                const clang::ValueDecl * parm = lve.get_right();
-                report(parm->getBeginLoc(), parm->getType()->isRValueReferenceType() ? m_const_rvalue_id : m_const_param_id)
-                    .AddValue(parm);
+            std::for_each(begin, end, [this](const auto & checked_entry) {
+                if (checked_entry.isReferred()) {
+                    const clang::ValueDecl * parm = checked_entry.referred;
+                    report(parm->getBeginLoc(), parm->getType()->isRValueReferenceType() ? m_const_rvalue_id : m_const_param_id)
+                        .AddValue(parm);
+                }
             });
         }
-        m_loop_vars.left.erase(begin, end);
+        m_checked_vars.get<Scope>().erase(begin, end);
     }
     m_function_decl_stack->end_body(stmt);
     return true;
 }
 
-void CCForRangeConstVisitor::removeLoopVar(const clang::DeclRefExpr * loop_var)
+void CCForRangeConstVisitor::removeCheckedVar(const clang::DeclRefExpr * checked_var)
 {
-    if (!loop_var) {
+    if (!checked_var) {
         return;
     }
 
-    auto it = m_loop_vars.right.find(loop_var->getDecl());
-    if (it != m_loop_vars.right.end()) {
-        if (clang::isa<clang::CXXForRangeStmt>(it->get_left())) {
-            m_loop_vars.left.erase(it->get_left()); // if one of binded values is modified, can't declare whole deomposition as 'const'
-        } else {
-            m_loop_vars.right.erase(it);
-        }
+    auto referred_it = m_checked_vars.get<Var>().find(checked_var->getDecl());
+    if (referred_it == m_checked_vars.get<Var>().end()) {
+        return;
     }
+
+    if (clang::isa<clang::CXXForRangeStmt>(referred_it->scope)) {
+        // if one of binded values is modified, can't declare whole deomposition as 'const'
+        m_checked_vars.get<Scope>().erase(referred_it->scope);
+    } else {
+        m_checked_vars.get<Referred>().erase(referred_it->referred);
+    }
+}
+
+auto CCForRangeConstVisitor::asCheckedVar(const clang::DeclRefExpr * var) -> std::optional<CheckedVar>
+{
+    if (!var) {
+        return std::nullopt;
+    }
+
+    auto & vars = m_checked_vars.get<Var>();
+    auto var_it = vars.find(var->getDecl());
+    if (var_it != vars.end()) {
+        return std::make_optional(*var_it);
+    }
+    return std::nullopt;
 }
 
 bool CCForRangeConstVisitor::hasConstOverload(const clang::CXXMethodDecl * method_decl)
@@ -392,3 +489,51 @@ bool CCForRangeConstVisitor::hasConstOverload(const clang::CXXMethodDecl * metho
 
     return cached_it->second = std::any_of(methods.begin(), methods.end(), same_but_const);
 }
+
+RefTypeInfo CCForRangeConstVisitor::getRefTypeInfo(const clang::QualType & type)
+{
+    auto iter_info = m_is_iterator(type.getUnqualifiedType()->getAsCXXRecordDecl());
+    if (iter_info.is_ref) {
+        return iter_info;
+    } else {
+        return {isRefOrPtr(type), isConstType(type)};
+    }
+}
+
+bool CCForRangeConstVisitor::isMutRef(const clang::QualType & type)
+{
+    auto ref_type_info = getRefTypeInfo(type);
+    return ref_type_info.is_ref && !ref_type_info.is_const;
+}
+
+void CCForRangeConstVisitor::addMutRefProducer(const clang::Expr * expr, const clang::Expr * prnt, const clang::ValueDecl * inited)
+{
+    expr = nullIfNotConsidered(expr);
+    if (expr) {
+        const auto * curr_sub_expr = &*m_mb_refs.insert({expr, prnt, inited}).first;
+
+        do {
+            const auto * dr_expr = extractDeclRef(curr_sub_expr->self);
+            removeCheckedVar(dr_expr);
+            auto mb_checked_var = asCheckedVar(dr_expr);
+            if (mb_checked_var) {
+                auto & checked_var = *mb_checked_var;
+                m_checked_vars.insert(checked_var.referBy(curr_sub_expr->initialized));
+            }
+
+            if (curr_sub_expr->parent) {
+                auto found_it = m_mb_refs.find(curr_sub_expr->parent);
+                if (found_it != m_mb_refs.end()) {
+                    curr_sub_expr = &*found_it;
+                } else {
+                    curr_sub_expr = nullptr;
+                }
+            } else {
+                curr_sub_expr = nullptr;
+            }
+        } while(curr_sub_expr);
+    }
+}
+
+bool CCForRangeConstVisitor::producesMutRef(const clang::Expr * expr)
+{ return m_mb_refs.count(nullIfNotConsidered(expr)) > 0; }

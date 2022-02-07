@@ -2,11 +2,13 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "boost/compressed_pair.hpp"
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Basic/SourceManager.h"
 
 #include <algorithm>
+#include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <cstring>
 #include <string>
@@ -159,3 +161,83 @@ bool isIdenticalStmt(
         const bool ignore_side_effects);
 
 const clang::DeclRefExpr * extractDeclRef(const clang::Expr * expr);
+
+// iterators/references
+struct RefTypeInfo
+{
+    bool is_ref = false;
+    bool is_const = false;
+    bool is_iter = false;
+};
+RefTypeInfo asRefType(const clang::QualType & type);
+
+RefTypeInfo isIterator(const clang::CXXRecordDecl * decl);
+
+
+// memorizing function
+template <class F>
+struct MemberFunctionTraits;
+
+template <class In, class Out, class F>
+struct MemberFunctionTraits<Out (F::*) (In)>
+{
+    using out = Out;
+    using in = In;
+};
+
+template <class In, class Out, class F>
+struct MemberFunctionTraits<Out (F::*) (In) const>
+    : public MemberFunctionTraits<Out (F::*) (In)>
+{
+};
+
+template <class L>
+struct LambdaTraits
+    : public MemberFunctionTraits<decltype(&L::operator())>
+{
+};
+
+template <class Out, class In>
+struct LambdaTraits<Out (*)(In)>
+{
+    using out = Out;
+    using in = In;
+};
+
+/// Functor wrapper for memorizing results of unary functions for lazy calculations
+///
+/// \param F is unary function F is U(V v) - std::unordered_map<U,V> should be compilable with these arguments
+///
+template <class F, class Out = typename LambdaTraits<F>::out, class In = typename LambdaTraits<F>::in>
+class MemorizingFunctor
+{
+public:
+    MemorizingFunctor(F && f)
+        : m_pair_functor_map(std::move(f))
+    {
+    }
+
+    Out operator()(In key) const
+    {
+        auto [it, emplaced] = cache().try_emplace(key);
+
+        if (emplaced) {
+            it->second = functor()(key);
+        }
+
+        return it->second;
+    }
+
+private:
+    const auto & functor() const
+    {
+        return m_pair_functor_map.first();
+    }
+
+    auto & cache() const
+    {
+        return m_pair_functor_map.second();
+    }
+private:
+    mutable boost::compressed_pair<F, std::unordered_map<In, Out>> m_pair_functor_map;
+};

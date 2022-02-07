@@ -217,3 +217,81 @@ const clang::DeclRefExpr * extractDeclRef(const clang::Expr * expr)
     }
     return clang::dyn_cast<clang::DeclRefExpr>(expr->IgnoreCasts());
 }
+
+RefTypeInfo asRefType(const clang::QualType & type)
+{
+    const bool is_ref = type->isReferenceType() || type->isPointerType();
+    if (!is_ref) {
+        return isIterator(type->getUnqualifiedDesugaredType()->getAsCXXRecordDecl());
+    }
+
+    auto derefed = type.getNonReferenceType();
+    const bool is_const = derefed->isPointerType() ? derefed->getPointeeType().isConstQualified() : derefed.isConstQualified();
+    const bool is_iter = false;
+    return {is_ref, is_const, is_iter};
+}
+
+RefTypeInfo isIterator(const clang::CXXRecordDecl *decl)
+{
+    if (!decl) {
+        return {};
+    }
+
+    const auto name = [decl] {
+        if (auto id = decl->getIdentifier()) {
+            return id->getName();
+        }
+        return llvm::StringRef("");
+    }();
+
+    if (name.empty()) {
+        return {};
+    }
+
+    if(!(name.endswith_lower("iterator") || name.endswith_lower("iter") ||
+         name.endswith_lower("it"))) {
+        return {};
+    }
+
+    RefTypeInfo res;
+    bool has_copy_ctor = false, has_copy_assign = true, has_dtor = false,
+        has_pre_inc_op = false, has_post_inc_op = false, has_deref_op = false;
+    for (const auto *method : decl->methods()) {
+        if (const auto *ctor = clang::dyn_cast<clang::CXXConstructorDecl>(method)) {
+            if (ctor->isCopyConstructor()) {
+                has_copy_ctor = !ctor->isDeleted() && ctor->getAccess() == clang::AS_public;
+            }
+            continue;
+        }
+        if (const auto *dtor = clang::dyn_cast<clang::CXXDestructorDecl>(method)) {
+            has_dtor = !dtor->isDeleted() && dtor->getAccess() == clang::AS_public;
+            continue;
+        }
+        if (method->isCopyAssignmentOperator()) {
+            has_copy_assign = !method->isDeleted() && method->getAccess() == clang::AS_public;
+            continue;
+        }
+        if (!method->isOverloadedOperator())
+            continue;   
+        const auto opk = method->getOverloadedOperator();
+        if (opk == clang::OO_PlusPlus) {
+            has_pre_inc_op = has_pre_inc_op || (method->getNumParams() == 0);
+            has_post_inc_op = has_post_inc_op || (method->getNumParams() == 1);
+            continue;
+        }
+        if (opk == clang::OO_Star) {
+            if (method->getNumParams() == 0) {
+                has_deref_op = true;
+                auto ret_type = method->getReturnType();
+                if (ret_type->getUnqualifiedDesugaredType()->getAsCXXRecordDecl() != decl) {
+                    res = asRefType(ret_type);
+                }
+            }
+            continue;
+        }
+   }
+  
+    res.is_iter &= has_copy_ctor && has_copy_assign && has_dtor &&
+                   has_pre_inc_op && has_post_inc_op && has_deref_op;
+    return res;
+}

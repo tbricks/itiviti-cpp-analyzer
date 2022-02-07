@@ -39,7 +39,7 @@ private:
 
 void consume_rvalue(std::string &&);
 
-const std::string & get_s1(std::string * s) // expected-warning {{'s' can have 'const' qualifier}}
+const std::string & get_s1(std::string * s)
 {
     return std::move(*s); // expected-warning {{result of 'std::move' is implicitly cast to const reference}}
 }
