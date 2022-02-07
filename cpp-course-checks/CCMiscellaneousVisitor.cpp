@@ -6,14 +6,8 @@
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/Basic/LLVM.h>
 #include <clang/Frontend/CompilerInstance.h>
-
-namespace  {
-    const clang::DeclRefExpr * toDeclRef(const clang::Expr * expr)
-    {
-        return expr ? clang::dyn_cast<clang::DeclRefExpr>(expr->IgnoreParenCasts()) : nullptr;
-    }
-}
 
 CCMiscellaneousVisitor::CCMiscellaneousVisitor(clang::CompilerInstance & ci, const ICAConfig & checks)
     : ICAVisitor(ci, checks)
@@ -72,7 +66,7 @@ bool CCMiscellaneousVisitor::VisitDeclRefExpr(clang::DeclRefExpr * decl_ref)
 
 bool CCMiscellaneousVisitor::VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr * op_call)
 {
-    if (!shouldProcessExpr(op_call, getSM())|| currCtor()) {
+    if (!(shouldProcessExpr(op_call, getSM()) || currCtor())) {
         return true;
     }
 
@@ -85,13 +79,13 @@ bool CCMiscellaneousVisitor::VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr
         return true;
     }
 
-    auto rhs = toDeclRef(op_call->getArg(1));
+    auto rhs = clang::dyn_cast<clang::DeclRefExpr>(op_call->getArg(1)->IgnoreParenCasts());
     if (!rhs) {
         if (auto call = clang::dyn_cast<clang::CallExpr>(op_call->getArg(1)->IgnoreParenCasts()); call && call->getNumArgs() == 1) {
             auto func_decl = call->getDirectCallee();
             if (auto identifier = func_decl->getIdentifier()) {
                 if (identifier->isStr("move") || identifier->isStr("forward")) {
-                    rhs = toDeclRef(call->getArg(0));
+                    rhs = clang::dyn_cast_or_null<clang::DeclRefExpr>(call->getArg(0));
                 }
             }
         }
@@ -186,7 +180,7 @@ void CCMiscellaneousVisitor::removeAssigned(const clang::VarDecl * var_decl)
 {
     auto it = m_last_assigned.find(var_decl);
     if (it != m_last_assigned.end()) {
-        if (it->second) {
+        if (it->second != 0) {
             it->second--;
         } else {
             m_last_assigned.erase(it);
