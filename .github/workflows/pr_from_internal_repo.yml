@@ -1,0 +1,20 @@
+name: PR from internal repo
+
+on:
+  push:
+    branches:
+      - '**-from-stash'
+
+jobs:
+  create_pr:
+    name: Create PR from internal repo branch
+
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout upstream
+        uses: actions/checkout@v2
+      - name: Create PR
+        run: |
+          gh pr create --base master --body "Automated update of shared part" --title "Update from internal repo"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

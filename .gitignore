@@ -6,3 +6,6 @@ test/*.json
 .clion**
 thd
 .vscode
+.cache/
+test/.cache/
+Testing/

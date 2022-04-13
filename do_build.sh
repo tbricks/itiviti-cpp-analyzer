@@ -1,5 +1,4 @@
 #!/bin/bash
-
 [ ! -d build ] && mkdir build
 cd build
 
@@ -9,9 +8,8 @@ LLVM_ROOT="/opt/llvm-10"
 cmake \
     -DCMAKE_C_COMPILER="${LLVM_ROOT}/bin/clang" \
     -DCMAKE_CXX_COMPILER="${LLVM_ROOT}/bin/clang++" \
-    -DLLVM_CONFIG_PATH="${LLVM_ROOT}/bin/llvm-config" \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DBOOST_ROOT="${BOOST}" \
+    -DCMAKE_BUILD_TYPE=Release \
     -DGCC_TOOLCHAIN="${GCC_ROOT}" \
+    -DBOOST_FROM_INTERNET=ON \
     -G "Unix Makefiles" \
     ../

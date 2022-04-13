@@ -1,0 +1,19 @@
+@PACKAGE_INIT@
+
+# ICA is available only for Clang
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND 
+   NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"
+   )
+    message(FATAL_ERROR "ICA is a Clang plugin, it cannot be used with another compiler")
+endif()
+
+if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS @LLVM_PACKAGE_VERSION@)
+    message(FATAL_ERROR "Your compiler is too old - this version of ICA was built for Clang @LLVM_PACKAGE_VERSION@.")
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/ICATargets.cmake")
+check_required_components(ICA)
+
+function(ica_set_checks ICA_CHECKS)
+    target_compile_options(ICA::ICAChecks INTERFACE "SHELL:-Xclang -plugin-arg-ica-plugin -Xclang checks=${ICA_CHECKS}")
+endfunction()

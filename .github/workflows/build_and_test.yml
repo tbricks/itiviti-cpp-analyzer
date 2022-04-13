@@ -1,0 +1,65 @@
+name: Build and test ICA
+
+on:
+  workflow_call:
+    inputs:
+      build_dir:
+        description: Directory where all the build output will be kept
+        default: 'build'
+        required: false
+        type: string
+      build_type:
+        description: CMake build type
+        default: 'RelWithDebInfo'
+        required: false
+        type: string
+      branch:
+        description: Branch to build the plugin from
+        default: 'master'
+        required: false
+        type: string
+      publish_artifact:
+        description: Set to 'true' if you want the resulted artifact to be published
+        default: false
+        required: false
+        type: boolean
+
+
+jobs:
+  build_plugin:
+    name: Build ICA plugin
+
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          ref: '${{ inputs.branch }}'
+      - name: Install Clang and dev libs
+        run: |
+          sudo apt install clang-10 libclang-10-dev libclang-cpp10-dev
+      - name: Prepare dir
+        run: |
+          [ ! -d "${{ inputs.build_dir }}" ] && mkdir -p "${{ inputs.build_dir }}"
+      - name: Configure build
+        run: |
+          cmake \
+            -DCMAKE_C_COMPILER=clang-10 \
+            -DCMAKE_CXX_COMPILER=clang++-10 \
+            -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
+            -DBOOST_FROM_INTERNET=ON \
+            "$GITHUB_WORKSPACE"
+        working-directory: '${{ inputs.build_dir }}'
+      - name: Run build
+        run: |
+          cmake --build "${{ inputs.build_dir }}" --parallel
+      - name: Run tests
+        run: ctest --output-on-failure
+        working-directory: '${{ inputs.build_dir }}'
+      - name: Publish artifact
+        if: ${{ inputs.publish_artifact }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: '${{ github.ref_name }}-artifact'
+          path: ./artifact_build/libica-plugin.so
+          if-no-files-found: error
