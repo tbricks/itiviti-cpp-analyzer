@@ -78,8 +78,36 @@ target_compile_options(ICAChecks INTERFACE
     "SHELL:-Xclang -add-plugin -Xclang ica-plugin"
 )
 
-function(ica_set_checks ICA_CHECKS)
-    target_compile_options(ICAChecks INTERFACE "SHELL:-Xclang -plugin-arg-ica-plugin -Xclang checks=${ICA_CHECKS}")
+function(add_ica_options)
+    foreach(opt IN LISTS ARGN)
+        add_compile_options("SHELL:-Xclang -plugin-arg-ica-plugin -Xclang ${opt}")
+    endforeach()
+endfunction()
+
+function(target_ica_options TARGET VISIBILITY)
+    foreach(opt IN LISTS ARGN)
+        target_compile_options(${TARGET} ${VISIBILITY} "SHELL:-Xclang -plugin-arg-ica-plugin -Xclang ${opt}")
+    endforeach()
+endfunction()
+
+function(add_ica_checks)
+    list(JOIN ARGN "," ICA_CHECKS)
+    link_libraries(ICAChecks)
+    add_ica_options("checks=${ICA_CHECKS}")
+endfunction()
+
+function(target_ica_checks TARGET VISIBILITY)
+    list(JOIN ARGN "," ICA_CHECKS)
+    target_link_libraries(${TARGET} ${VISIBILITY} ICAChecks)
+    target_ica_options(${TARGET} ${VISIBILITY} "checks=${ICA_CHECKS}")
+endfunction()
+
+function(ica_no_url)
+    add_ica_options("no-url")
+endfunction()
+
+function(target_ica_no_url TARGET VISIBILITY)
+    target_ica_options(${TARGET} ${VISIBILITY} "no-url")
 endfunction()
 
 #
