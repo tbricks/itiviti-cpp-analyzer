@@ -1,6 +1,10 @@
 name: Run CI check on push
 
-on: push
+on:
+  push:
+    branches:
+      - '**'
+      - '!main'
 
 jobs:
   run_ci:
@@ -9,12 +13,3 @@ jobs:
     with:
       build_type: 'Debug'
       branch: ${{ github.ref_name }}
-  build_artifact:
-    name: Prepare artifact
-    needs: run_ci
-    uses: tbricks/itiviti-cpp-analyzer/.github/workflows/build_and_test.yml@main
-    with:
-      build_type: 'RelWithDebInfo'
-      branch: ${{ github.ref_name }}
-      build_dir: artifact_build
-      publish_artifact: true

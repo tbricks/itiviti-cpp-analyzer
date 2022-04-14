@@ -1,0 +1,35 @@
+name: Manual CI run
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_dir:
+        description: Directory where all the build output will be kept
+        default: 'build'
+        required: false
+        type: string
+      build_type:
+        description: CMake build type
+        default: 'RelWithDebInfo'
+        required: false
+        type: string
+      branch:
+        description: Branch to build the plugin from
+        default: 'main'
+        required: false
+        type: string
+      artifact_name:
+        description: Set non-empty name for the built binary to be published with this artifact name
+        default: ''
+        required: false
+        type: string
+
+jobs:
+  run_ci:
+    name: Run CI
+    uses: tbricks/itiviti-cpp-analyzer/.github/workflows/build_and_test.yml@main
+    with:
+      build_dir: ${{ github.event.inputs.build_dir }}
+      build_type: ${{ github.event.inputs.build_type }}
+      branch: ${{ github.event.inputs.branch }}
+      artifact_name: ${{ github.event.inputs.artifact_name }}
