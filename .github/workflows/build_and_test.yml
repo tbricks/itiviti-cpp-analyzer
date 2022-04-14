@@ -15,15 +15,14 @@ on:
         type: string
       branch:
         description: Branch to build the plugin from
-        default: 'master'
+        default: 'main'
         required: false
         type: string
-      publish_artifact:
-        description: Set to 'true' if you want the resulted artifact to be published
-        default: false
+      artifact_name:
+        description: Set non-empty name for the built binary to be published with this artifact name
+        default: ~
         required: false
-        type: boolean
-
+        type: string
 
 jobs:
   build_plugin:
@@ -57,9 +56,9 @@ jobs:
         run: ctest --output-on-failure
         working-directory: '${{ inputs.build_dir }}'
       - name: Publish artifact
-        if: ${{ inputs.publish_artifact }}
+        if: ${{ inputs.artifact_name }}
         uses: actions/upload-artifact@v3
         with:
-          name: '${{ github.ref_name }}-artifact'
-          path: ./artifact_build/libica-plugin.so
+          name: ${{ inputs.artifact_name }}
+          path: ./${{ inputs.build_dir }}/libica-plugin.so
           if-no-files-found: error

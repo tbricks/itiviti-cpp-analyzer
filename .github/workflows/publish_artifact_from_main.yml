@@ -1,0 +1,16 @@
+name: Publish artifact on push to main
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  build_artifact:
+    name: Prepare artifact
+    uses: tbricks/itiviti-cpp-analyzer/.github/workflows/build_and_test.yml@main
+    with:
+      build_type: 'RelWithDebInfo'
+      branch: ${{ github.ref_name }}
+      build_dir: artifact_build
+      artifact_name: ICA-artifact
