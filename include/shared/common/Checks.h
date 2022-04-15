@@ -80,7 +80,7 @@ class Checks
 
 public:
     Checks() = default;
-    Checks(const Checks & from);
+    Checks(const Checks & from) = default;
 
     explicit Checks(const std::string & checks)
     {
@@ -90,7 +90,6 @@ public:
     void clear()
     {
         m_checks.clear();
-        m_checks_str.clear();
         m_all = Check::Disabled;
     }
 
@@ -102,8 +101,7 @@ private:
     Check & get(std::string_view check) noexcept;
 
 private:
-    Check m_all;
-    std::string m_checks_str;
+    Check m_all = Check::Disabled;
     std::unordered_map<std::string_view, Check> m_checks;
 };
 

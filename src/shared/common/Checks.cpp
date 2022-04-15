@@ -69,7 +69,7 @@ class Parser
     static constexpr inline auto warning = Check::to_string(Check::Warning);
 
 public:
-    Parser(const std::string & checks_str)
+    Parser(std::string_view checks_str)
         : m_current_str(checks_str)
     { }
 
@@ -111,20 +111,6 @@ private:
 
 } // namespace parser
 
-
-Checks::Checks(const Checks & from)
-    : m_all(std::move(from.m_all))
-{
-    m_checks_str = from.m_checks_str;
-    const char * from_checks_str = from.m_checks_str.data();
-    const char * to_checks_str = m_checks_str.data();
-
-    for (const auto & [from_check, state] : from.m_checks) {
-        std::string_view to_check{from_check.data() - from_checks_str + to_checks_str, from_check.size()};
-        m_checks.try_emplace(to_check, state);
-    }
-}
-
 const Check Checks::operator [] (const std::string_view check) const noexcept
 {
     if (const auto it = m_checks.find(check); it != m_checks.end()) {
@@ -141,11 +127,8 @@ Check & Checks::get(const std::string_view check) noexcept
 
 std::optional<std::string> Checks::parse(const std::string_view checks_list)
 {
-    clear();
-    m_checks_str = checks_list;
-
     parser::Result result;
-    parser::Parser parser(m_checks_str);
+    parser::Parser parser(checks_list);
 
     while ((result = parser())) {
         const auto [check, state] = *result;
