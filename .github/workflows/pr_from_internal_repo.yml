@@ -15,6 +15,6 @@ jobs:
         uses: actions/checkout@v2
       - name: Create PR
         run: |
-          gh pr create --base master --body "Automated update of shared part" --title "Update from internal repo"
+          gh pr create --base main --body "Automated update of shared part" --title "Update from internal repo"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
