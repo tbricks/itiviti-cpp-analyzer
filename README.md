@@ -74,7 +74,7 @@ You need additional flags:
 * `-load path/to/libica-plugin.so`
 * `-add-plugin ica-plugin`
 * `-plugin-arg-ica-plugin checks=$CHECKS`
-* `-plugin-arg-ica-plugin no-url` - optionally disable integrating url to the check info
+* `-plugin-arg-ica-plugin no-url` - optionally disable integrating URL into check message
 
 `CHECKS` is the [check list](README.md#checks-list)
 
@@ -88,7 +88,14 @@ Every argument for the compiler frontend is passed with `-Xclang`, so the final 
 
 ### CMake integration
 
-If you have a CMake project, there are options to use ICA easily, either as an external project or a subdirectory in your workspace.
+If you have a CMake project, there are options to use ICA easily, either as an external project or a subdirectory in your workspace. In any case, several CMake helpers should become available:
+
+* `add_ica_checks(check1 check2 ...)` - load plugin and enable specified checks. You can use emit levels here as usual.
+* `ica_no_url()` - disable integrating URL into check message.
+
+Running `target_ica_checks(MyTarget VISIBILITY ...)` or `target_ica_no_url(MyTarget VISIBILITY)` will apply configuration to single target and/or its dependencies.
+
+Here are some minimal integration examples:
 
 #### Use as an external project
 
@@ -105,9 +112,7 @@ And add this to your _CMakeLists.txt_
 list(APPEND CMAKE_PREFIX_PATH "/path/to/ica/installation")
 
 find_package(ICA CONFIG REQUIRED)
-ica_set_checks(<your checks list>)
-
-target_link_libraries(<your target> ICA::ICAChecks)
+add_ica_checks(<your checks list>)
 ```
 
 #### Use as a subdirectory
@@ -119,11 +124,8 @@ Add ICA sources as subdirectory to your project (probably through _git submodule
 set(BOOST_FROM_INTERNET ON)
 
 add_subdirectory(itiviti-cpp-analyzer)
-ica_set_checks(<your checks list>)
-
-target_link_libraries(<your target> ICAChecks)
+add_ica_checks(<your checks list>)
 ```
-
 
 ### Supress a warning
 
