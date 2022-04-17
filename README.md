@@ -102,17 +102,29 @@ Here are some minimal integration examples:
 First you need to have your ICA built ([see](README.md#build-guide)) and installed:
 
 ```bash
-cd build && cmake --install --install-prefix /path/to/ica/installation/
+cd build && cmake --install . --install-prefix /path/to/ica/installation/
 ```
 
 And add this to your _CMakeLists.txt_
 
 ```cmake
+# NOTE: `find_package` should be located after root `project(...)`
+project(<your project> LANGUAGES C CXX)
+
+...
+
 # If ICA is installed in unusual location
 list(APPEND CMAKE_PREFIX_PATH "/path/to/ica/installation")
 
 find_package(ICA CONFIG REQUIRED)
 add_ica_checks(<your checks list>)
+
+...
+
+# NOTE: Added checks will be effective only for subsequent targets
+add_subdirectory(my-subdir)
+add_library(my-lib)
+add_executable(my-exec)
 ```
 
 #### Use as a subdirectory
@@ -120,11 +132,23 @@ add_ica_checks(<your checks list>)
 Add ICA sources as subdirectory to your project (probably through _git submodule_) and add this to your _CMakeLists.txt_
 
 ```cmake
+# NOTE: `add_subdirectory` should be located after root `project(...)`
+project(<your project> LANGUAGES C CXX)
+
+...
+
 # Set any other cache variables here: GCC_TOOLCHAIN, LLVM_ROOT, ...
 set(BOOST_FROM_INTERNET ON)
 
 add_subdirectory(itiviti-cpp-analyzer)
 add_ica_checks(<your checks list>)
+
+...
+
+# NOTE: Added checks will be effective only for subsequent targets
+add_subdirectory(my-subdir)
+add_library(my-lib)
+add_executable(my-exec)
 ```
 
 ### Supress a warning
