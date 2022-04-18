@@ -74,7 +74,7 @@ You need additional flags:
 * `-load path/to/libica-plugin.so`
 * `-add-plugin ica-plugin`
 * `-plugin-arg-ica-plugin checks=$CHECKS`
-* `-plugin-arg-ica-plugin no-url` - optionally disable integrating URL into check message
+* `-plugin-arg-ica-plugin no-url` - optionally disable integrating url to the check info
 
 `CHECKS` is the [check list](README.md#checks-list)
 
@@ -88,43 +88,26 @@ Every argument for the compiler frontend is passed with `-Xclang`, so the final 
 
 ### CMake integration
 
-If you have a CMake project, there are options to use ICA easily, either as an external project or a subdirectory in your workspace. In any case, several CMake helpers should become available:
-
-* `add_ica_checks(check1 check2 ...)` - load plugin and enable specified checks. You can use emit levels here as usual.
-* `ica_no_url()` - disable integrating URL into check message.
-
-Running `target_ica_checks(MyTarget VISIBILITY ...)` or `target_ica_no_url(MyTarget VISIBILITY)` will apply configuration to single target and/or its dependencies.
-
-Here are some minimal integration examples:
+If you have a CMake project, there are options to use ICA easily, either as an external project or a subdirectory in your workspace.
 
 #### Use as an external project
 
 First you need to have your ICA built ([see](README.md#build-guide)) and installed:
 
 ```bash
-cd build && cmake --install . --install-prefix /path/to/ica/installation/
+cd build && cmake --install --install-prefix /path/to/ica/installation/
 ```
 
 And add this to your _CMakeLists.txt_
 
 ```cmake
-# NOTE: `find_package` should be located after root `project(...)`
-project(<your project> LANGUAGES C CXX)
-
-...
-
 # If ICA is installed in unusual location
 list(APPEND CMAKE_PREFIX_PATH "/path/to/ica/installation")
 
 find_package(ICA CONFIG REQUIRED)
-add_ica_checks(<your checks list>)
+ica_set_checks(<your checks list>)
 
-...
-
-# NOTE: Added checks will be effective only for subsequent targets
-add_subdirectory(my-subdir)
-add_library(my-lib)
-add_executable(my-exec)
+target_link_libraries(<your target> ICA::ICAChecks)
 ```
 
 #### Use as a subdirectory
@@ -132,24 +115,15 @@ add_executable(my-exec)
 Add ICA sources as subdirectory to your project (probably through _git submodule_) and add this to your _CMakeLists.txt_
 
 ```cmake
-# NOTE: `add_subdirectory` should be located after root `project(...)`
-project(<your project> LANGUAGES C CXX)
-
-...
-
 # Set any other cache variables here: GCC_TOOLCHAIN, LLVM_ROOT, ...
 set(BOOST_FROM_INTERNET ON)
 
 add_subdirectory(itiviti-cpp-analyzer)
-add_ica_checks(<your checks list>)
+ica_set_checks(<your checks list>)
 
-...
-
-# NOTE: Added checks will be effective only for subsequent targets
-add_subdirectory(my-subdir)
-add_library(my-lib)
-add_executable(my-exec)
+target_link_libraries(<your target> ICAChecks)
 ```
+
 
 ### Supress a warning
 

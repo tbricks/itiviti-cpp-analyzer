@@ -1,0 +1,13 @@
+default initialized atomics
+loop w/o usage of iterator in body
+std::to_string -> fmt::format
+implicit casts (bool <-> ptr <-> integer <-> char)
+move in loop on object declared out of loop
+default template argument std::enable_if instead of std::enable_if_t
+std::list<>::size (because it has linear complexity)
+std::distance() for non-random access iterators
+
+automize tests (done for some checks)
+
+performance issues
+- use single mega visitor to traverse tree only once
