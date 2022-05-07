@@ -44,3 +44,17 @@ const int * add_const(int & i) // expected-warning {{'i' can have 'const' qualif
 
 int get_first(std::vector<int> & v) // expected-warning {{'v' can have 'const' qualifier}}
 { return v[0]; }
+
+struct Node
+{
+    void update(Node & parent) // no warning expected
+    {
+        if (parent.left != nullptr) {
+            parent.left->parent = &parent;
+        }
+    }
+
+    Node * left;
+    Node * right;
+    Node * parent;
+};
