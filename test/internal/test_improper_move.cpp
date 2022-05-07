@@ -70,8 +70,8 @@ auto try_move(T && value, int i)
 template <class... Args>
 void move_all(std::string * s, Args && ... args)
 {
-    std::move(s);               // clang-tidy: performance-move-const-arg
-    (..., (std::move(args)));   // expected-warning 1+ {{'args' got as non-const lvalue, moving from it may invalidate it's data}}
+    (void)std::move(s);               // clang-tidy: performance-move-const-arg
+    (..., ((void)std::move(args)));   // expected-warning 1+ {{'args' got as non-const lvalue, moving from it may invalidate it's data}}
 }
 
 void never_move_str(std::string && s) // expected-warning {{'s' is got as rvalue-reference, but never modified}}
@@ -90,7 +90,7 @@ struct StringPair
         second = std::move(rhs.second);
     }
 
-    StringPair(std::unique_ptr<StringPair> && ptr) // expected-warning {{'ptr' is got as rvalue-reference, but never modified}}
+    StringPair(std::unique_ptr<StringPair> && ptr) // no warning
     {
         first = std::move(ptr->first);
         second = std::move(ptr->second);
