@@ -18,7 +18,6 @@ RemoveCStrVisitor::RemoveCStrVisitor(clang::CompilerInstance & ci, const Config 
 enum class RefStringType
 {
     None,
-    StringRef,
     StringView,
 };
 
@@ -32,9 +31,6 @@ std::pair<bool, RefStringType> is_string_ref_parameter(const clang::QualType & t
 
     auto unqual_name = getUnqualifiedClassName(type);
 
-    if (unqual_name == "tbricks::types::StringRef") {
-        return {true, RefStringType::StringRef};
-    }
     if (unqual_name == "std::basic_string_view<char, std::char_traits<char> >") {
         return {true, RefStringType::StringView};
     }
@@ -199,9 +195,7 @@ bool RemoveCStrVisitor::VisitCXXMemberCallExpr(clang::CXXMemberCallExpr * member
                 ref_type != RefStringType::None &&
                 !compareCurrentAndOverload(prev_method_decl, other_method)) {
                 report(arg_member_call->getExprLoc(), m_replace_method_id)
-                    .AddValue(ref_type == RefStringType::StringRef
-                            ? "types::StringRef"
-                            : "std::string_view");
+                    .AddValue("std::string_view");
 
                 report(other_method->getLocation(), m_note_id);
 
