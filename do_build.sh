@@ -5,7 +5,9 @@ cd build
 GCC_ROOT="/opt/gcc-8.2.0"
 LLVM_ROOT="/opt/llvm-10"
 
-cmake \
+[ -z ${CMAKE} ] && CMAKE="cmake"
+
+${CMAKE} \
     -DCMAKE_C_COMPILER="${LLVM_ROOT}/bin/clang" \
     -DCMAKE_CXX_COMPILER="${LLVM_ROOT}/bin/clang++" \
     -DCMAKE_BUILD_TYPE=Release \

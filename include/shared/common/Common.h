@@ -179,6 +179,10 @@ bool isIdenticalStmt(
         const clang::Stmt * stmt2,
         const bool ignore_side_effects);
 
+/*
+ *  Extracts a variable that is referenced in an expression
+ *  e.g. obj from obj.field, or obj.method(), or obj[idx] or *obj
+ */
 const clang::DeclRefExpr * extractDeclRef(const clang::Expr * expr);
 
 // iterators/references
