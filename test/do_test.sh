@@ -9,15 +9,15 @@ if [ -z "${CHECKS}" ]; then
 fi
 
 #    -fsyntax-only \
-clang++-10 \
+${LLVM_ROOT}/bin/clang++ \
     -Xclang -load -Xclang ../build/libica-plugin.so \
     -Xclang -add-plugin -Xclang ica-plugin \
     -Xclang -plugin-arg-ica-plugin -Xclang checks=${CHECKS} -Xclang -verify \
     -std=c++17 \
+    --gcc-toolchain=/opt/gcc-8.2.0 \
+    -isystem/opt/gcc-8.2.0/lib/gcc/x86_64-linux-gnu/8.2.0/include \
     -c \
     $1 -o $1.o
-
-rm $1.o
 
 #${LLVM_ROOT}/bin/clang++ \
 #    -Xclang -load -Xclang ../build/libclang-toy-plugin.so -Xclang -plugin -Xclang clang-toy-plugin \

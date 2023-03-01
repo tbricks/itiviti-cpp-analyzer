@@ -1,7 +1,6 @@
 #include "shared/common/Common.h"
 
 #include "internal/util/RepoSpecific.h"
-#include <clang/AST/Expr.h>
 
 namespace ica {
 
@@ -195,37 +194,26 @@ const clang::DeclRefExpr * extractDeclRef(const clang::Expr * expr)
     if (!expr) {
         return nullptr;
     }
-    const clang::Expr * old_expr = nullptr;
-
-    do {
-        old_expr = expr;
-        expr = expr->IgnoreImpCasts();
-        if (auto arr_subscr = clang::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
-            expr = arr_subscr->getBase();
+    expr = expr->IgnoreImpCasts();
+    if (auto arr_subscr = clang::dyn_cast<clang::ArraySubscriptExpr>(expr)) {
+        expr = arr_subscr->getBase();
+    }
+    else if (auto mem_call = clang::dyn_cast<clang::CXXMemberCallExpr>(expr)) {
+        auto method_decl = mem_call->getMethodDecl();
+        if (method_decl && method_decl->getReturnType()->isReferenceType()) { // we associate method result with the object itself only if it returns a reference
+            expr = mem_call->getImplicitObjectArgument();
         }
-        else if (auto mem_call = clang::dyn_cast<clang::CXXMemberCallExpr>(expr)) {
-            auto method_decl = mem_call->getMethodDecl();
-            if (method_decl && method_decl->getReturnType()->isReferenceType()) { // we associate method result with the object itself only if it returns a reference
-                expr = mem_call->getImplicitObjectArgument();
-            }
-        }
-        else if (auto mem_expr = clang::dyn_cast<clang::MemberExpr>(expr)) {
-            expr = mem_expr->getBase();
-        }
-        else if (auto op_call = clang::dyn_cast<clang::CXXOperatorCallExpr>(expr)) {
-            expr = op_call->getArg(0); // operator has at least one argument, I'm pretty sure it's the argument, operator applied to
-        }
-        else if (auto op_call = clang::dyn_cast<clang::UnaryOperator>(expr)) {
-            expr = op_call->getSubExpr();
-        }
-        expr = expr->IgnoreCasts();
-        
-        if (const auto * res = clang::dyn_cast<clang::DeclRefExpr>(expr)) {
-            return res;
-        }
-    } while (expr != old_expr);
-
-    return nullptr;
+    }
+    else if (auto mem_expr = clang::dyn_cast<clang::MemberExpr>(expr)) {
+        expr = mem_expr->getBase();
+    }
+    else if (auto op_call = clang::dyn_cast<clang::CXXOperatorCallExpr>(expr)) {
+        expr = op_call->getArg(0); // operator has at least one argument, I'm pretty sure it's the argument, operator applied to
+    }
+    else if (auto op_call = clang::dyn_cast<clang::UnaryOperator>(expr)) {
+        expr = op_call->getSubExpr();
+    }
+    return clang::dyn_cast<clang::DeclRefExpr>(expr->IgnoreCasts());
 }
 
 RefTypeInfo asRefType(const clang::QualType & type)
