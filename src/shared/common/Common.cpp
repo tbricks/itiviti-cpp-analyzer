@@ -59,7 +59,7 @@ bool isIdenticalStmt(
     case Stmt::CXXMemberCallExprClass:
     case Stmt::CXXOperatorCallExprClass:
     case Stmt::ArraySubscriptExprClass:
-    case Stmt::OMPArraySectionExprClass:
+    case Stmt::ArraySectionExprClass:
     case Stmt::ImplicitCastExprClass:
     case Stmt::ParenExprClass:
     case Stmt::BreakStmtClass:
@@ -258,8 +258,8 @@ RefTypeInfo isIterator(const clang::CXXRecordDecl *decl)
         return {};
     }
 
-    if(!(name.endswith_lower("iterator") || name.endswith_lower("iter") ||
-         name.endswith_lower("it"))) {
+    if(!(name.ends_with_insensitive("iterator") || name.ends_with_insensitive("iter") ||
+         name.ends_with_insensitive("it"))) {
         return {};
     }
 

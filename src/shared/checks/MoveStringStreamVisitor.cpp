@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <string_view>
 
-using namespace std::string_view_literals;
-
 namespace ica {
 
 MoveStringStreamVisitor::MoveStringStreamVisitor(clang::CompilerInstance & ci, const Config & config)
@@ -32,7 +30,7 @@ bool MoveStringStreamVisitor::VisitCXXMemberCallExpr(clang::CXXMemberCallExpr * 
         if (decl_ref) {
             auto decl = decl_ref->getDecl();
             if (m_all_references_to_string_streams.find(decl) != m_all_references_to_string_streams.end()
-                    && method_decl->getName() == "str"sv) {
+                    && method_decl->getName() == "str") {
                 m_decl_refs_to_string_streams_on_str_calls.emplace(decl, ExprList{decl_ref});
             }
         }
@@ -99,7 +97,7 @@ void MoveStringStreamVisitor::printDiagnostic(clang::ASTContext & context)
                     const auto loc_end = last_ref_to_ss->getEndLoc();
 
                     const auto range = clang::SourceRange(loc, loc_end);
-                    const std::string ss_name = clang::dyn_cast<clang::NamedDecl>(ss_decl)->getName();
+                    const std::string ss_name{clang::dyn_cast<clang::NamedDecl>(ss_decl)->getName()};
                     const std::string replacement = "std::move(" + ss_name + ')';
 
                     auto hint = clang::FixItHint::CreateReplacement(range, replacement);

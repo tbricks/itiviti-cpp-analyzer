@@ -2,6 +2,7 @@
 
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
+#include "clang/Basic/SourceManager.h"
 
 #include "llvm/ADT/StringRef.h"
 
@@ -146,29 +147,6 @@ inline std::string getUnqualifiedClassName(const clang::QualType & type)
 {
     const auto t = type.getCanonicalType().getUnqualifiedType();
     return removeClassPrefix(t.getAsString());
-}
-
-// current version of libLLVM doesn't have a way to cast llvm::StringRef to std::string_view, but implicitly casts to std::string
-inline std::string_view to_string_view(const llvm::StringRef sr) noexcept
-{
-    return std::string_view(sr.data(), sr.size());
-}
-
-inline bool operator == (const llvm::StringRef l, const std::string_view r) noexcept
-{
-    return l.equals(llvm::StringRef{r.data(), r.size()});
-}
-inline bool operator != (const llvm::StringRef l, const std::string_view r) noexcept
-{
-    return !(l == r);
-}
-inline bool operator == (const std::string_view l, const llvm::StringRef r) noexcept
-{
-    return (r == l);
-}
-inline bool operator != (const std::string_view l, const llvm::StringRef r) noexcept
-{
-    return !(r == l);
 }
 
 std::string wrapCheckNameWithURL(std::string_view check_name);

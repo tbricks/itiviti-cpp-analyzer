@@ -310,7 +310,7 @@ bool isBadContainer(const clang::QualType & type)
 {
     const auto raw_name = getUnqualifiedClassName(type);
     auto cut_template_name = llvm::StringRef(raw_name);
-    return cut_template_name.startswith("std::unordered_map") || cut_template_name.startswith("std::map");
+    return cut_template_name.starts_with("std::unordered_map") || cut_template_name.starts_with("std::map");
 }
 
 bool isNotPiecewiseConstructVariable(const clang::Expr * arg)
@@ -463,7 +463,7 @@ void FindEmplaceVisitor::makeTryEmplaceReport(const clang::CXXMemberCallExpr * m
     auto obj_expr_string = getContName(getSM(), method_call_expr);
     auto add_try = clang::FixItHint::CreateInsertion(method_loc, "try_");
     auto remove_hint_suffix = [&] (DiagnosticBuilder && diag_builder) {
-        if (method_name.equals("emplace_hint")) {
+        if (method_name == "emplace_hint") {
             auto remove_hint_suffix = clang::FixItHint::CreateRemoval(clang::SourceRange(
                 method_loc.getLocWithOffset(7),
                 method_loc.getLocWithOffset(12)

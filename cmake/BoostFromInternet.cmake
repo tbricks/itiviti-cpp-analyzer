@@ -3,7 +3,7 @@ set(BOOST_FROM_INTERNET OFF CACHE BOOL "Download Boost headers from Internet")
 string(REPLACE "." "_" BOOST_DIRNAME ${BOOST_VERSION})
 set(BOOST_DIRNAME boost_${BOOST_DIRNAME})
 
-set(BOOST_URL "https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/${BOOST_DIRNAME}.tar.gz")
+set(BOOST_URL "https://archives.boost.io/release/${BOOST_VERSION}/source/${BOOST_DIRNAME}.tar.gz")
 
 if (BOOST_FROM_INTERNET)
     set(Boost_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${BOOST_DIRNAME})

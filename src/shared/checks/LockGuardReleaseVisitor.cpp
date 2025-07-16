@@ -1,6 +1,8 @@
 #include "shared/checks/LockGuardReleaseVisitor.h"
 #include "shared/common/Common.h"
 
+#include "clang/AST/ParentMapContext.h"
+
 namespace ica {
 
 LockGuardReleaseVisitor::LockGuardReleaseVisitor(clang::CompilerInstance & ci, const Config & config)

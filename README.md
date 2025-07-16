@@ -20,34 +20,40 @@ If you want to contribute to the project, see [CONTRIBUTING.md](./CONTRIBUTING.m
 
 ### Prerequisites
 
-You need Clang and CMake to build the plugin. Also you need `libclang-10-dev` and `libclang-cpp10-dev` packages. Optionally, you may need Boost 1.68+ headers (it can be downloaded during the build instead).
+* CMake
+* Clang and LLVM libraries, tools and corresponding development packages
+* Boost (optional -- can be downloaded during the build instead, see `BOOST_FROM_INTERNET`)
 
-Currently, ICA only works with `clang-10`
+Current version of ICA is tested and known to be working with `clang-20`. Using ICA with other LLVM versions might work, but is not guaranteed.
 
 ### Build guide
 
 ```bash
-[ ! -d build ] && mkdir build
-cd build
-
-cmake \
+cmake -S . -B ./build/ \
     -DGCC_TOOLCHAIN=<path/to/gcc/toolchain (probably, /usr/lib)> \
     -DBOOST_FROM_INTERNET=ON \
-    -DTARGET_COMPILER=clang++-10 \
-    ../
+    -DTARGET_COMPILER=clang++-20 \
 
-cmake --build . --parallel
+cmake --build ./build/ --parallel
 ```
 
 * `BOOST_FROM_INTERNET` is only needed if you haven't Boost headers
 * `BOOST_ROOT` can be specified instead
-* `TARGET_COMPILER` is the compiler used for tests. Specify if you don't use `clang-10` for compilation
+* `TARGET_COMPILER` is the compiler used for tests. Specify if you don't use `clang-20` for compilation
 
 The built plugin will be in `./build/libica-plugin.so`
 
+### Running tests
+
+[CTest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) is used to run tests. Every test is a source file where expected warnings and notes are marked (check [clang docs](https://clang.llvm.org/doxygen/classclang_1_1VerifyDiagnosticConsumer.html) for syntax).
+
+```bash
+ctest --test-dir ./build/ --output-on-failure
+```
+
 ## Usage
 
-You need `libica-plugin.so` and `clang-10`
+You need `libica-plugin.so` and `clang-20`
 
 ### Checks list
 

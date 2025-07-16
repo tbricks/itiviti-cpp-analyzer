@@ -31,7 +31,7 @@ std::pair<bool, RefStringType> is_string_ref_parameter(const clang::QualType & t
 
     auto unqual_name = getUnqualifiedClassName(type);
 
-    if (unqual_name == "std::basic_string_view<char, std::char_traits<char> >") {
+    if (unqual_name == "std::basic_string_view<char>") {
         return {true, RefStringType::StringView};
     }
     return {false, RefStringType::None};
@@ -40,7 +40,7 @@ std::pair<bool, RefStringType> is_string_ref_parameter(const clang::QualType & t
 bool check_for_str_info(const clang::QualType some_type)
 {
     return is_string_ref_parameter(some_type).first ||
-            removePrefix(removeSuffix(getUnqualifiedClassName(some_type), " &").second, "const ").second == "std::basic_string<char, std::char_traits<char>, std::allocator<char> >";
+            removePrefix(removeSuffix(getUnqualifiedClassName(some_type), " &").second, "const ").second == "std::basic_string<char>";
 }
 
 bool compareCurrentAndOverload(const clang::CXXMethodDecl * current_decl, const clang::CXXMethodDecl * overload_decl)
@@ -89,8 +89,6 @@ bool RemoveCStrVisitor::VisitFunctionDecl(clang::FunctionDecl * function_decl)
 
 bool RemoveCStrVisitor::VisitCXXMemberCallExpr(clang::CXXMemberCallExpr * member_call)
 {
-    using namespace std::literals::string_view_literals;
-
     if (!member_call ||
             isExpansionInSystemHeader(member_call, getSM()) ||
             isInvalidLocation(member_call) ||
@@ -133,7 +131,7 @@ bool RemoveCStrVisitor::VisitCXXMemberCallExpr(clang::CXXMemberCallExpr * member
         }
 
         auto * arg_record_decl = arg_member_call->getRecordDecl();
-        if (!arg_record_decl || arg_record_decl->getName() != "basic_string"sv) {
+        if (!arg_record_decl || arg_record_decl->getName() != "basic_string") {
             continue;
         }
 
